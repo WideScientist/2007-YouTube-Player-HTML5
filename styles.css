@@ -148,7 +148,7 @@ left: 50%;
 transform: translate(-50%, -50%);
 width: 30px; /* match your frame width */
 height: 30px; /* match your frame height */
-background: url('assets/loading_frames/1.png') no-repeat center center;
+background: url('assets/loading_frames/1.svg') no-repeat center center;
 background-size: 30px 30px; /* exact frame size */
 display: none; /* hidden by default */
 z-index: 100000000000;
@@ -241,9 +241,9 @@ image-rendering: smooth; /* or smooth if supported */
 }
 
 .bar-left {
-width: 5px; /* exact width of bg_left.png */
+width: 5px; /* exact width of bg_edge.svg */
 height: 31px;
-background: url('assets/background/bg_left.png') no-repeat left bottom;
+background: url('assets/background/bg_edge.svg') no-repeat left bottom;
 flex-shrink: 0;
 margin: 0; padding: 0;
 }
@@ -251,21 +251,23 @@ margin: 0; padding: 0;
 .bar-center {
 height: 31px;
 margin: 0; padding: 0;
-background: url('assets/background/bg_center.png') repeat-x left bottom;
+background: url('assets/background/bg_center.svg') repeat-x left bottom;
 width: 100%; /* In fullscreen, let it span entire width */
 }
 
 .bar-right {
-width: 5px; /* exact width of bg_right.png */
+width: 5px; /* exact width of bg_edge.svg */
 height: 31px;
-background: url('assets/background/bg_right.png') no-repeat right bottom;
+background: url('assets/background/bg_edge.svg') no-repeat left bottom;
+transform: scaleX(-1);
+transform-origin: center;
 flex-shrink: 0;
 margin: 0; padding: 0;
 }
 
-.bar-left { width: 5px; height: 31px; background: url('assets/background/bg_left.png') no-repeat left bottom; flex-shrink:0; }
-.bar-center { height:31px; background:url('assets/background/bg_center.png') repeat-x left bottom; flex:1; }
-.bar-right { width:5px; height:31px; background:url('assets/background/bg_right.png') no-repeat right bottom; flex-shrink:0; }
+.bar-left { width: 5px; height: 31px; background: url('assets/background/bg_edge.svg') no-repeat left bottom; flex-shrink:0; }
+.bar-center { height:31px; background:url('assets/background/bg_center.svg') repeat-x left bottom; flex:1; }
+.bar-right { width:5px; height:31px; background:url('assets/background/bg_edge.svg') no-repeat left bottom; transform: scaleX(-1); transform-origin: center; flex-shrink:0; }
 
 /* Controls bar sits above the backgrounds */
 .controls-bar {
@@ -307,58 +309,59 @@ background: none;
 
 /* Play/Pause Button (not playing) */
 .pause-btn {
+position: relative;
 width: 30px; 
 height: 25px;
-background:
-  url('assets/playpausebuttons/play_icon.png') no-repeat 60% center,
-  url('assets/playpausebuttons/play_pause_bg.png') no-repeat 50% 50%;
+background: url('assets/playpausebuttons/play_pause_bg.svg') no-repeat 50% 50%;
 margin-right: 1px;
 }
-.pause-btn:hover {
-background:
-  url('assets/playpausebuttons/play_icon_hover.png') no-repeat 60% center,
-  url('assets/playpausebuttons/play_pause_bg.png') no-repeat 50% 50%;
+.pause-btn::before {
+content: "";
+position: absolute;
+inset: 0;
+background: url('assets/playpausebuttons/play_icon.svg') no-repeat 60% center;
+pointer-events: none;
+}
+.pause-btn:hover::before {
+background-image: url('assets/playpausebuttons/play_icon_hover.svg');
 }
 .pause-btn:active {
-background:
-  url('assets/playpausebuttons/play_icon_hover.png') no-repeat 60% center,
-  url('assets/playpausebuttons/play_pause_bg_clicked.png') no-repeat 50% 50%;
+transform: scaleY(-1);
+transform-origin: center;
 }
 
 /* Play/Pause Button (playing) */
-.pause-btn.playing {
-background:
-  url('assets/playpausebuttons/pause_icon.png') no-repeat 60% center,
-  url('assets/playpausebuttons/play_pause_bg.png') no-repeat 50% 50%;
+.pause-btn.playing::before {
+background-image: url('assets/playpausebuttons/pause_icon.svg');
 }
-.pause-btn.playing:hover {
-background:
-  url('assets/playpausebuttons/pause_icon_hover.png') no-repeat 60% center,
-  url('assets/playpausebuttons/play_pause_bg.png') no-repeat 50% 50%;
+.pause-btn.playing:hover::before {
+background-image: url('assets/playpausebuttons/pause_icon_hover.svg');
 }
 .pause-btn.playing:active {
-background:
-  url('assets/playpausebuttons/pause_icon_hover.png') no-repeat 60% center,
-  url('assets/playpausebuttons/play_pause_bg_clicked.png') no-repeat 50% 50%;
+transform: scaleY(-1);
+transform-origin: center;
 }
 
 /* Rewind Button */
 .rewind-btn {
+position: relative;
 width: 23px;
 height: 25px;
-background:
-  url('assets/rewind/rewind.png') no-repeat center center,
-  url('assets/rewind/rewind_bg.png') no-repeat center center;
+background: url('assets/rewind/rewind_bg.svg') no-repeat center center;
 }
-.rewind-btn:hover {
-background:
-  url('assets/rewind/rewind_icon_hover.png') no-repeat center center,
-  url('assets/rewind/rewind_bg.png') no-repeat center center;
+.rewind-btn::before {
+content: "";
+position: absolute;
+inset: 0;
+background: url('assets/rewind/rewind.svg') no-repeat center center;
+pointer-events: none;
+}
+.rewind-btn:hover::before {
+background-image: url('assets/rewind/rewind_hover.svg');
 }
 .rewind-btn:active {
-background:
-  url('assets/rewind/rewind_icon_hover.png') no-repeat center center,
-  url('assets/rewind/rewind_bg_clicked.png') no-repeat center center;
+transform: scaleY(-1);
+transform-origin: center;
 }
 
 /* Timeline */
@@ -376,14 +379,14 @@ display: block;
 .progress-background {
 width:auto;
 height: 8px;
-background: url('assets/timeline/timeline.png') repeat-x left center;
+background: url('assets/timeline/timeline.svg') repeat-x left center;
 position: relative;
 top: 50%;
 transform: translateY(-50%);
 }
 .progress-loaded {
 left: 0; /* Will be set in JS as a % */
-background: url('assets/timeline/played_bar_connected.png') repeat-x left center;
+background: url('assets/timeline/played_bar.svg') repeat-x left center;
 opacity: 0.6;
 z-index: 1;
 }
@@ -393,7 +396,7 @@ position: absolute;
 top: 0;
 left: 0; /* Dynamically set by JS */
 height: 8px;
-background: url('assets/timeline/played_bar_connected.png') repeat-x left center;
+background: url('assets/timeline/played_bar.svg') repeat-x left center;
 z-index: 2;
 }
 
@@ -411,13 +414,13 @@ will-change: left, width;
   transform: translateY(-50%);
   width: 21px;
   height: 21px;
-  background: url('assets/timeline/cursor/timeline_cursor.png') no-repeat center center;
+  background: url('assets/timeline/cursor/timeline_cursor.svg') no-repeat center center;
   cursor: pointer;
   z-index: 9999;
   will-change: left;
 }
 .progress-handle.active {
-  background: url('assets/timeline/cursor/timeline_cursor_red.png') no-repeat center center !important;
+  background: url('assets/timeline/cursor/timeline_cursor_red.svg') no-repeat center center !important;
 }
 
 .progress-loaded,
@@ -444,12 +447,16 @@ vertical-align: middle;
 margin-left:8px;
 margin-right: 0px;
 font-family: 'OriginalYTFont', Arial, sans-serif;
+-webkit-user-select: none;
+-moz-user-select: none;
+-ms-user-select: none;
+user-select: none;
 }
 
 .time-box {
 width: 70px;
 height: 18px;
-background: url('assets/timeline/time_bg.png') no-repeat center center;
+background: url('assets/timeline/time_bg.svg') no-repeat center center;
 text-align: center;
 line-height: 18px;
 font-size: 10px;
@@ -458,6 +465,10 @@ display: inline-block;
 vertical-align: middle;
 margin-right: 10px;
 margin-left: -10px;
+-webkit-user-select: none;
+-moz-user-select: none;
+-ms-user-select: none;
+user-select: none;
 }
 
 .time-current { color: #fff; }
@@ -468,7 +479,7 @@ margin-left: -10px;
 .divider {
 width: 2px;
 height: 31px;
-background: url('assets/background/divider.png') no-repeat center center;
+background: url('assets/background/divider.svg') no-repeat center center;
 display: inline-block;
 vertical-align: middle;
 }
@@ -485,7 +496,7 @@ margin: 0 8px;
 position: relative;
 width: 45px;
 height: 4px;
-background: url('assets/volume/volume_slider_bg.png') repeat-x center center;
+background: url('assets/volume/volume_slider_bg.svg') repeat-x center center;
 margin-right: 4px;
 }
 
@@ -495,7 +506,7 @@ top: 0;
 left: 0;
 height: 4px;
 width: 100%;
-background: url('assets/volume/volume_indicator.png') repeat-x center center;
+background: url('assets/volume/volume_slider_bg.svg') repeat-x center center;
 pointer-events: none;
 }
 
@@ -503,7 +514,7 @@ pointer-events: none;
 position: absolute;
 width: 7px;
 height: 20px;
-background: url('assets/volume/volume_slider.png') no-repeat center center;
+background: url('assets/volume/volume_slider.svg') no-repeat center center;
 top: 50%;
 transform: translateY(-50%);
 left: 100%; 
@@ -511,15 +522,50 @@ cursor: pointer;
 z-index: 9999;
 }
 
-/* Default volume icon (volume_icon_4.png) */
+/* Volume button: speaker body + indicator lines */
 .volume-btn {
 display: inline-block;
 vertical-align: middle;
-width: 20px; 
+position: relative;
+width: 21px;
 height: 20px;
 margin-left: 4px;
-background: url('assets/volume/volume_icon_4.png') no-repeat center center;
-background-size: contain;
+background: url('assets/volume/volume_icon.svg') no-repeat 0 5px;
+background-size: 9px 11px;
+}
+
+.volume-btn::after {
+content: "";
+position: absolute;
+inset: 0;
+background: none;
+pointer-events: none;
+}
+
+.volume-btn.volume-level-1::after {
+background:
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 11px 7px / 1px 7px;
+}
+
+.volume-btn.volume-level-2::after {
+background:
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 11px 7px / 1px 7px,
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 13px 5px / 1px 11px;
+}
+
+.volume-btn.volume-level-3::after {
+background:
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 11px 7px / 1px 7px,
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 13px 5px / 1px 11px,
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 15px 3px / 1px 15px;
+}
+
+.volume-btn.volume-level-4::after {
+background:
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 11px 7px / 1px 7px,
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 13px 5px / 1px 11px,
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 15px 3px / 1px 15px,
+  url('assets/volume/volume_indicator.svg?v=4') no-repeat 17px 1px / 1px 19px;
 }
 
 /* Muted class to grey out at 0% volume */

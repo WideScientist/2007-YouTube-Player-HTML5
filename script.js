@@ -37,6 +37,10 @@ const watchAgainBtn = document.getElementById('watchAgainBtn');
 const ytLoaderForm = document.getElementById('ytLoaderForm');
 const ytUrlInput = document.getElementById('ytUrlInput');
 const ytInputError = document.getElementById('ytInputError');
+const playerContainers = Array.from(document.querySelectorAll('.player-container'));
+let uiAssetsReady = false;
+let pendingLoadingAnimation = false;
+let fullscreenHoverEventsAttached = false;
 endedButtons.style.display = 'none';
 loadingIndicator.style.zIndex = '99999999999999999999999999';
 loadingIndicator.style.position = 'absolute';
@@ -47,6 +51,16 @@ loadingIndicator.style.backgroundRepeat = 'no-repeat';
 loadingIndicator.style.backgroundPosition = 'center';
 loadingIndicator.style.backgroundSize = 'contain';
 loadingIndicator.style.pointerEvents = 'none';
+
+function setPlayerVisibility(isVisible) {
+  const visibility = isVisible ? 'visible' : 'hidden';
+  for (const container of playerContainers) {
+    container.style.visibility = visibility;
+  }
+}
+
+// Hide player UI until assets are preloaded to prevent first-hover texture pops.
+setPlayerVisibility(false);
 
 // Decide playback provider based on URL (?yt=VIDEO_ID_OR_URL)
 function getQueryParam(name) {
@@ -236,36 +250,51 @@ earliestWatchedTime = 0;
 let loadingFrame = 1;
 const loadingTotalFrames = 22;
 let loadingInterval = null;
-const loadingFrameDelay = 100; // ms between loading frames
+const loadingFps = 24; // Faster buffering cadence
+const loadingFrameDelay = Math.round(1000 / loadingFps); // ~42ms per frame
+const loadingLastFrameHoldTicks = 2; // Keep final frame visible for one extra tick
+let loadingLastFrameHold = 0;
 
 function updateLoadingFrame() {
     if (loadingFrame < loadingTotalFrames) {
       loadingFrame++;
-      loadingIndicator.style.backgroundImage = `url('assets/loading_frames/${loadingFrame}.png')`;
+      loadingLastFrameHold = 0;
+    } else if (loadingLastFrameHold < (loadingLastFrameHoldTicks - 1)) {
+      loadingLastFrameHold++;
     } else {
-      // Loop back to frame 1, no fade needed, just continuous loop
+      // Loop back to frame 1 after briefly holding the final frame
       loadingFrame = 1;
-      loadingIndicator.style.backgroundImage = `url('assets/loading_frames/1.png')`;
+      loadingLastFrameHold = 0;
     }
+
+    loadingIndicator.style.backgroundImage = `url('assets/loading_frames/${loadingFrame}.svg')`;
   }
   
   function startLoadingAnimation() {
+    if (!uiAssetsReady) {
+      pendingLoadingAnimation = true;
+      return;
+    }
     if (!loadingInterval) {
+      pendingLoadingAnimation = false;
       loadingFrame = 1;
-      loadingIndicator.style.backgroundImage = `url('assets/loading_frames/1.png')`;
+      loadingLastFrameHold = 0;
+      loadingIndicator.style.backgroundImage = `url('assets/loading_frames/1.svg')`;
       loadingIndicator.style.display = 'block'; // show the indicator
       loadingInterval = setInterval(updateLoadingFrame, loadingFrameDelay);
     }
   }
   
   function stopLoadingAnimation() {
+    pendingLoadingAnimation = false;
     if (loadingInterval) {
       clearInterval(loadingInterval);
       loadingInterval = null;
       loadingIndicator.style.display = 'none'; // hide the indicator
       // reset to frame 1
       loadingFrame = 1;
-      loadingIndicator.style.backgroundImage = `url('assets/loading_frames/1.png')`;
+      loadingLastFrameHold = 0;
+      loadingIndicator.style.backgroundImage = `url('assets/loading_frames/1.svg')`;
     }
   }
 
@@ -480,28 +509,23 @@ progressSection.addEventListener('click', (e) => {
 
 /* Volume Logic */
 function updateVolumeIcon(volPercent) {
-  let iconFile;
-  if (volPercent === 0) {
-    iconFile = './assets/volume/volume_icon.png';
-    volumeBtn.classList.add('muted');
-  } else if (volPercent <= 25) {
-    iconFile = './assets/volume/volume_icon_1.png';
-    volumeBtn.classList.remove('muted');
-  } else if (volPercent <= 50) {
-    iconFile = './assets/volume/volume_icon_2.png';
-    volumeBtn.classList.remove('muted');
-  } else if (volPercent <= 75) {
-    iconFile = './assets/volume/volume_icon_3.png';
-    volumeBtn.classList.remove('muted');
-  } else {
-    iconFile = './assets/volume/volume_icon_4.png';
-    volumeBtn.classList.remove('muted');
+  const volume = Math.max(0, Math.min(100, Number(volPercent) || 0));
+  let volumeLevelClass = 'volume-level-0';
+  if (volume === 0) {
+    volumeLevelClass = 'volume-level-0';
+  } else if (volume <= 25) {
+    volumeLevelClass = 'volume-level-1';
+  } else if (volume <= 50) {
+    volumeLevelClass = 'volume-level-2';
+  } else if (volume <= 75) {
+    volumeLevelClass = 'volume-level-3';
+  } else if (volume > 75) {
+    volumeLevelClass = 'volume-level-4';
   }
 
-  volumeBtn.style.backgroundImage = `url('${iconFile}')`;
-  volumeBtn.style.backgroundRepeat = 'no-repeat';
-  volumeBtn.style.backgroundPosition = 'center';
-  volumeBtn.style.backgroundSize = 'contain';
+  volumeBtn.classList.remove('volume-level-0', 'volume-level-1', 'volume-level-2', 'volume-level-3', 'volume-level-4');
+  volumeBtn.classList.add(volumeLevelClass);
+  volumeBtn.classList.toggle('muted', volume === 0);
 }
 
 function setVolume(volPercent) {
@@ -641,6 +665,7 @@ function updateFullscreenFrame() {
 }
 
 function startFullscreenAnimation() {
+  if (!uiAssetsReady) return;
   if (!fullscreenInterval) {
     fullscreenFrame = 1;
     fullscreenBtn.style.backgroundImage = `url('assets/fullscreen_button/1.png')`;
@@ -659,17 +684,18 @@ function stopFullscreenAnimation() {
 }
 
 function attachFullscreenHoverEvents() {
+  if (fullscreenHoverEventsAttached) return;
   fullscreenBtn.addEventListener('mouseenter', startFullscreenAnimation);
   fullscreenBtn.addEventListener('mouseleave', stopFullscreenAnimation);
+  fullscreenHoverEventsAttached = true;
 }
 
 function detachFullscreenHoverEvents() {
+  if (!fullscreenHoverEventsAttached) return;
   fullscreenBtn.removeEventListener('mouseenter', startFullscreenAnimation);
   fullscreenBtn.removeEventListener('mouseleave', stopFullscreenAnimation);
+  fullscreenHoverEventsAttached = false;
 }
-
-// Initially attach hover events (for normal mode)
-attachFullscreenHoverEvents();
     
     // Toggle fullscreen function
     // Existing code above remains unchanged...
@@ -766,18 +792,77 @@ function waitForStableLayout() {
   });
 }
     
-// Preload UI image assets to prevent flicker when first shown
-function preloadImages(paths) {
-  const images = [];
-  for (const path of paths) {
-    const img = new Image();
-    img.src = path;
-    images.push(img);
+function collectStylesheetAssetUrls() {
+  const urls = new Set();
+  const urlPattern = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
+
+  function visitRule(rule) {
+    if (!rule) return;
+    if (rule.cssText) {
+      urlPattern.lastIndex = 0;
+      let match;
+      while ((match = urlPattern.exec(rule.cssText)) !== null) {
+        const path = match[2];
+        if (!path) continue;
+        if (/^(?:data:|https?:|blob:)/i.test(path)) continue;
+        urls.add(path);
+      }
+    }
+    if (rule.cssRules && rule.cssRules.length) {
+      for (const child of Array.from(rule.cssRules)) {
+        visitRule(child);
+      }
+    }
   }
-  return images;
+
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules;
+    try {
+      rules = sheet.cssRules;
+    } catch (_) {
+      continue;
+    }
+    for (const rule of Array.from(rules)) {
+      visitRule(rule);
+    }
+  }
+
+  return Array.from(urls);
 }
 
-function preloadUIAssets() {
+// Preload UI image assets and wait for completion to avoid first-hover flashes.
+function preloadImages(paths, timeoutMs = 8000) {
+  const uniquePaths = Array.from(new Set((paths || []).filter(Boolean)));
+
+  return Promise.all(uniquePaths.map((path) => new Promise((resolve) => {
+    const img = new Image();
+    let done = false;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve(path);
+    };
+
+    const timer = setTimeout(finish, timeoutMs);
+    img.onload = () => {
+      clearTimeout(timer);
+      if (typeof img.decode === 'function') {
+        img.decode().catch(() => {}).finally(finish);
+      } else {
+        finish();
+      }
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      finish();
+    };
+    img.src = path;
+  })));
+}
+
+async function preloadUIAssets() {
+  const stylesheetAssets = collectStylesheetAssetUrls();
   const fullscreenFrames = [];
   for (let i = 1; i <= 24; i++) {
     fullscreenFrames.push(`assets/fullscreen_button/${i}.png`);
@@ -786,18 +871,35 @@ function preloadUIAssets() {
 
   const loadingFrames = [];
   for (let i = 1; i <= 22; i++) {
-    loadingFrames.push(`assets/loading_frames/${i}.png`);
+    loadingFrames.push(`assets/loading_frames/${i}.svg`);
   }
 
   const volumeIcons = [
-    'assets/volume/volume_icon.png',
-    'assets/volume/volume_icon_1.png',
-    'assets/volume/volume_icon_2.png',
-    'assets/volume/volume_icon_3.png',
-    'assets/volume/volume_icon_4.png'
+    'assets/volume/volume_icon.svg',
+    'assets/volume/volume_indicator.svg?v=4'
   ];
 
-  preloadImages([...fullscreenFrames, ...loadingFrames, ...volumeIcons]);
+  // Force-preload hover textures so they render instantly on first hover.
+  const hoverCriticalAssets = [
+    'assets/playpausebuttons/play_icon_hover.svg',
+    'assets/playpausebuttons/pause_icon_hover.svg',
+    'assets/rewind/rewind_hover.svg',
+    'assets/share_controls/2.png',
+    'assets/share_controls/3.png',
+    'assets/play_again_controls/2.png'
+  ];
+
+  const allUiAssets = [
+    ...stylesheetAssets,
+    ...fullscreenFrames,
+    ...loadingFrames,
+    ...volumeIcons,
+    ...hoverCriticalAssets
+  ];
+
+  console.log('[YTDBG] Preloading UI assets:', allUiAssets.length);
+  await preloadImages(allUiAssets);
+  console.log('[YTDBG] UI assets preloaded.');
 }
 
 // Coalesce UI updates to animation frames to avoid layout thrash/flicker
@@ -811,9 +913,16 @@ function scheduleUIUpdate() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   console.log('[YTDBG] DOMContentLoaded. URL:', window.location.href);
-  preloadUIAssets();
+  await preloadUIAssets();
+  uiAssetsReady = true;
+  setPlayerVisibility(true);
+  attachFullscreenHoverEvents();
+  if (pendingLoadingAnimation) {
+    startLoadingAnimation();
+  }
+
   if (isYouTubeMode) {
     console.log('[YTDBG] Entering YouTube mode with', { ytVideoId, ytStartAt });
     // Use unified flow to enter YouTube mode and honor start time

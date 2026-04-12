@@ -25,7 +25,9 @@ const progressLoaded = document.getElementById('progressLoaded');
 const progressHandle = document.getElementById('progressHandle');
 const timeCurrent = document.getElementById('timeCurrent');
 const timeTotal = document.getElementById('timeTotal');
+const timeBox = document.querySelector('.time-box');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
+const theaterBtn = document.getElementById('theaterBtn');
 const progressSection = document.querySelector('.progress-section');
 const volumeTrack = document.getElementById('volumeTrack');
 const volumeHandle = document.getElementById('volumeHandle');
@@ -41,6 +43,20 @@ const playerContainers = Array.from(document.querySelectorAll('.player-container
 let uiAssetsReady = false;
 let pendingLoadingAnimation = false;
 let fullscreenHoverEventsAttached = false;
+let theaterHoverEventsAttached = false;
+const WATCH_CLASSIC_PLAYER_WIDTH = 500;
+const WATCH_CLASSIC_VIDEO_HEIGHT = 350;
+const WATCH_CLASSIC_CONTROLS_HEIGHT = 31;
+const WATCH_CLASSIC_SIDE_WIDTH = 315;
+const WATCH_THEATER_GRID_GAP = 12;
+const WATCH_THEATER_ASPECT_RATIO = 16 / 9;
+const WATCH_THEATER_MIN_WIDTH = 500;
+const WATCH_THEATER_MIN_HEIGHT = 260;
+const DEFAULT_TIME_BOX_WIDTH = 70;
+const DEFAULT_CLOCK_TEXT = '00:00 / 00:00';
+const DEFAULT_CLOCK_TEXT_LENGTH = DEFAULT_CLOCK_TEXT.length;
+const TIME_BOX_EXTRA_CHAR_WIDTH = 6;
+let playerAspectRatioHint = null;
 endedButtons.style.display = 'none';
 loadingIndicator.style.zIndex = '99999999999999999999999999';
 loadingIndicator.style.position = 'absolute';
@@ -52,11 +68,260 @@ loadingIndicator.style.backgroundPosition = 'center';
 loadingIndicator.style.backgroundSize = 'contain';
 loadingIndicator.style.pointerEvents = 'none';
 
+function isWatchClassicLayout() {
+  return !!document.querySelector('.watch-layout.watch-classic');
+}
+
+function isWatchTheaterModeActive() {
+  const layout = document.querySelector('.watch-layout.watch-classic');
+  return !!(layout && layout.classList.contains('theater-mode'));
+}
+
+function normalizeAspectRatio(value) {
+  const ratio = Number(value);
+  if (!Number.isFinite(ratio)) return null;
+  if (ratio < 0.25 || ratio > 4) return null;
+  return ratio;
+}
+
+function setPlayerAspectRatioHint(ratio) {
+  const normalized = normalizeAspectRatio(ratio);
+  const changed = normalized !== playerAspectRatioHint;
+  playerAspectRatioHint = normalized;
+  if (changed && isWatchTheaterModeActive()) {
+    enforceWatchTheaterWindowedBox();
+  }
+}
+
+window.setPlayerAspectRatioHint = setPlayerAspectRatioHint;
+
+function getActiveYouTubeElement() {
+  if (ytPlayer && typeof ytPlayer.getIframe === 'function') {
+    try {
+      const iframe = ytPlayer.getIframe();
+      if (iframe) return iframe;
+    } catch (_) {}
+  }
+  return document.getElementById('ytContainer');
+}
+
+function setActiveYouTubeDisplay(displayValue) {
+  const liveYtEl = getActiveYouTubeElement();
+  if (liveYtEl) {
+    liveYtEl.style.display = displayValue;
+  } else if (ytContainer) {
+    ytContainer.style.display = displayValue;
+  }
+}
+
+function syncYouTubePlayerBox(width, height) {
+  const w = Math.max(1, Math.round(Number(width) || 0));
+  const h = Math.max(1, Math.round(Number(height) || 0));
+  const liveYtEl = getActiveYouTubeElement();
+
+  if (liveYtEl) {
+    liveYtEl.style.setProperty('width', `${w}px`, 'important');
+    liveYtEl.style.setProperty('height', `${h}px`, 'important');
+    liveYtEl.style.setProperty('min-width', `${w}px`, 'important');
+    liveYtEl.style.setProperty('min-height', `${h}px`, 'important');
+  }
+
+  if (ytPlayer && typeof ytPlayer.setSize === 'function') {
+    try {
+      ytPlayer.setSize(w, h);
+    } catch (_) {}
+  }
+}
+
+function getActiveMediaAspectRatio() {
+  if (isYouTubeMode) {
+    if (playerAspectRatioHint) return playerAspectRatioHint;
+
+    const ytEl = getActiveYouTubeElement();
+    if (ytEl) {
+      const attrW = Number(ytEl.getAttribute('width'));
+      const attrH = Number(ytEl.getAttribute('height'));
+      if (Number.isFinite(attrW) && Number.isFinite(attrH) && attrW > 0 && attrH > 0) {
+        return attrW / attrH;
+      }
+    }
+    // Most YouTube uploads are widescreen; use this instead of stale local-video dimensions.
+    return WATCH_THEATER_ASPECT_RATIO;
+  }
+
+  if (myVideo && myVideo.videoWidth > 0 && myVideo.videoHeight > 0) {
+    return myVideo.videoWidth / myVideo.videoHeight;
+  }
+
+  return WATCH_THEATER_ASPECT_RATIO;
+}
+
+function getTheaterVideoHeightForWidth(width) {
+  const safeWidth = Math.max(WATCH_THEATER_MIN_WIDTH, Math.round(Number(width) || 0));
+  const aspect = Math.max(0.25, Math.min(4, getActiveMediaAspectRatio() || WATCH_THEATER_ASPECT_RATIO));
+  const computedHeight = Math.round(safeWidth / aspect);
+  return Math.max(WATCH_THEATER_MIN_HEIGHT, computedHeight);
+}
+
+function enforceWatchClassicWindowedBox() {
+  if (document.fullscreenElement || !isWatchClassicLayout() || isWatchTheaterModeActive()) return;
+
+  const layout = document.querySelector('.watch-layout.watch-classic');
+  const leftCol = document.querySelector('.watch-classic .watch-left');
+  const midCol = document.querySelector('.watch-classic .watch-mid');
+  const frame = document.querySelector('.watch-classic .watch-player-frame');
+  const container = document.querySelector('.watch-classic .player-container');
+  const videoArea = document.querySelector('.watch-classic .video-area');
+  const bottomBar = document.querySelector('.watch-classic .bottom-bar');
+  const actionsStats = document.getElementById('actionsAndStatsDiv');
+  const actionsMatrix = document.querySelector('.watch-classic .actionsMatrix');
+
+  if (layout) {
+    layout.style.setProperty('grid-template-columns', `${WATCH_CLASSIC_PLAYER_WIDTH}px ${WATCH_CLASSIC_SIDE_WIDTH}px`, 'important');
+    layout.style.setProperty('column-gap', '12px', 'important');
+  }
+  if (leftCol) leftCol.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+  if (midCol) midCol.style.setProperty('width', `${WATCH_CLASSIC_SIDE_WIDTH}px`, 'important');
+  if (frame) frame.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+  if (container) {
+    container.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+    container.style.setProperty('max-width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+  }
+  if (videoArea) {
+    videoArea.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+    videoArea.style.setProperty('min-width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+    videoArea.style.setProperty('height', `${WATCH_CLASSIC_VIDEO_HEIGHT}px`, 'important');
+    videoArea.style.setProperty('min-height', `${WATCH_CLASSIC_VIDEO_HEIGHT}px`, 'important');
+  }
+  if (myVideo) {
+    myVideo.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+    myVideo.style.setProperty('height', `${WATCH_CLASSIC_VIDEO_HEIGHT}px`, 'important');
+    myVideo.style.setProperty('object-fit', 'contain', 'important');
+  }
+  syncYouTubePlayerBox(WATCH_CLASSIC_PLAYER_WIDTH, WATCH_CLASSIC_VIDEO_HEIGHT);
+  if (bottomBar) {
+    bottomBar.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+    bottomBar.style.setProperty('height', `${WATCH_CLASSIC_CONTROLS_HEIGHT}px`, 'important');
+  }
+  if (actionsStats) actionsStats.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+  if (actionsMatrix) actionsMatrix.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+}
+
+function enforceWatchTheaterWindowedBox() {
+  if (document.fullscreenElement || !isWatchClassicLayout() || !isWatchTheaterModeActive()) return;
+
+  const layout = document.querySelector('.watch-layout.watch-classic');
+  const leftCol = document.querySelector('.watch-classic .watch-left');
+  const midCol = document.querySelector('.watch-classic .watch-mid');
+  const frame = document.querySelector('.watch-classic .watch-player-frame');
+  const container = document.querySelector('.watch-classic .player-container');
+  const videoArea = document.querySelector('.watch-classic .video-area');
+  const bottomBar = document.querySelector('.watch-classic .bottom-bar');
+  const actionsStats = document.getElementById('actionsAndStatsDiv');
+  const actionsMatrix = document.querySelector('.watch-classic .actionsMatrix');
+
+  if (!layout) return;
+
+  const layoutInnerWidth = Math.max(WATCH_THEATER_MIN_WIDTH, Math.floor(layout.clientWidth - 16));
+  const theaterPlayerWidth = layoutInnerWidth;
+  const theaterMainColumnWidth = Math.max(
+    1,
+    theaterPlayerWidth - WATCH_CLASSIC_SIDE_WIDTH - WATCH_THEATER_GRID_GAP
+  );
+  const theaterVideoHeight = getTheaterVideoHeightForWidth(theaterPlayerWidth);
+
+  layout.style.setProperty('grid-template-columns', `${theaterMainColumnWidth}px ${WATCH_CLASSIC_SIDE_WIDTH}px`, 'important');
+  layout.style.setProperty('column-gap', `${WATCH_THEATER_GRID_GAP}px`, 'important');
+  layout.style.setProperty('row-gap', '8px', 'important');
+
+  if (leftCol) leftCol.style.setProperty('width', 'auto', 'important');
+  if (midCol) {
+    midCol.style.setProperty('width', `${WATCH_CLASSIC_SIDE_WIDTH}px`, 'important');
+    midCol.style.setProperty('margin-top', '0px', 'important');
+  }
+  if (frame) frame.style.setProperty('width', `${theaterPlayerWidth}px`, 'important');
+  if (container) {
+    container.style.setProperty('width', `${theaterPlayerWidth}px`, 'important');
+    container.style.setProperty('max-width', `${theaterPlayerWidth}px`, 'important');
+  }
+  if (videoArea) {
+    videoArea.style.setProperty('width', `${theaterPlayerWidth}px`, 'important');
+    videoArea.style.setProperty('min-width', `${theaterPlayerWidth}px`, 'important');
+    videoArea.style.setProperty('height', `${theaterVideoHeight}px`, 'important');
+    videoArea.style.setProperty('min-height', `${theaterVideoHeight}px`, 'important');
+  }
+  if (myVideo) {
+    myVideo.style.setProperty('width', `${theaterPlayerWidth}px`, 'important');
+    myVideo.style.setProperty('height', `${theaterVideoHeight}px`, 'important');
+    myVideo.style.setProperty('object-fit', 'contain', 'important');
+  }
+  syncYouTubePlayerBox(theaterPlayerWidth, theaterVideoHeight);
+  if (bottomBar) {
+    bottomBar.style.setProperty('width', `${theaterPlayerWidth}px`, 'important');
+    bottomBar.style.setProperty('height', `${WATCH_CLASSIC_CONTROLS_HEIGHT}px`, 'important');
+  }
+  if (actionsStats) actionsStats.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+  if (actionsMatrix) actionsMatrix.style.setProperty('width', `${WATCH_CLASSIC_PLAYER_WIDTH}px`, 'important');
+}
+
+function setWatchTheaterMode(enabled) {
+  if (!isWatchClassicLayout()) return;
+  const layout = document.querySelector('.watch-layout.watch-classic');
+  const midCol = document.querySelector('.watch-classic .watch-mid');
+  if (!layout) return;
+
+  layout.classList.toggle('theater-mode', enabled);
+  document.body.classList.toggle('watch-theater-mode', enabled);
+  if (theaterBtn) theaterBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+
+  if (enabled) {
+    enforceWatchTheaterWindowedBox();
+  } else {
+    layout.style.removeProperty('grid-template-columns');
+    layout.style.removeProperty('column-gap');
+    layout.style.removeProperty('row-gap');
+    if (midCol) midCol.style.removeProperty('margin-top');
+    enforceWatchClassicWindowedBox();
+  }
+  scheduleUIUpdate();
+}
+
+function setFullscreenUiState(isFullscreen) {
+  document.documentElement.classList.toggle('player-is-fullscreen', isFullscreen);
+
+  if (theaterBtn) {
+    if (isFullscreen) {
+      theaterBtn.style.setProperty('display', 'none', 'important');
+    } else {
+      theaterBtn.style.removeProperty('display');
+    }
+  }
+}
+
 function setPlayerVisibility(isVisible) {
   const visibility = isVisible ? 'visible' : 'hidden';
   for (const container of playerContainers) {
     container.style.visibility = visibility;
   }
+}
+
+window.addEventListener('resize', () => {
+  if (isWatchTheaterModeActive()) {
+    enforceWatchTheaterWindowedBox();
+  } else {
+    enforceWatchClassicWindowedBox();
+  }
+});
+
+if (ytContainer) {
+  const ytContainerObserver = new MutationObserver(() => {
+    if (isWatchTheaterModeActive()) {
+      enforceWatchTheaterWindowedBox();
+    } else {
+      enforceWatchClassicWindowedBox();
+    }
+  });
+  ytContainerObserver.observe(ytContainer, { childList: true, subtree: true });
 }
 
 // Hide player UI until assets are preloaded to prevent first-hover texture pops.
@@ -185,6 +450,10 @@ if (!isYouTubeMode) {
 
     endedButtons.style.display = 'none';
     myVideo.play();
+
+    if (isWatchTheaterModeActive()) {
+      enforceWatchTheaterWindowedBox();
+    }
   });
 }
 
@@ -407,21 +676,54 @@ function updateProgress() {
 
 // Removed duplicate percent-based updateBuffered; using pixel-precise version below
 function updateTimeDisplay(currentTime, duration) {
-  // For currentTime, pass a flag to formatTime to zero-pad minutes
-  timeCurrent.textContent = formatTime(currentTime, true);
-  timeTotal.textContent = duration ? formatTime(duration, false) : '0:00';
+  timeCurrent.textContent = formatTimeForDuration(currentTime, duration);
+  timeTotal.textContent = duration ? formatTimeForDuration(duration, duration) : '00:00';
+
+  if (adjustTimeBoxWidth()) {
+    // Recalculate timeline geometry if the time-box width changed.
+    scheduleUIUpdate();
+  }
 }
 
-function formatTime(seconds, isCurrent) {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
+function adjustTimeBoxWidth() {
+  if (!timeBox) return false;
+  const clockText = `${timeCurrent.textContent} / ${timeTotal.textContent}`;
+  const extraChars = Math.max(0, clockText.length - DEFAULT_CLOCK_TEXT_LENGTH);
+  const desiredWidth = DEFAULT_TIME_BOX_WIDTH + (extraChars * TIME_BOX_EXTRA_CHAR_WIDTH);
 
-  // If it's current time (isCurrent = true), zero-pad the minutes if < 10
-  // Otherwise, leave minutes as is for total time
-  const minutesStr = isCurrent ? (m < 10 ? '0' + m : m) : m;
-  const secondsStr = s < 10 ? '0' + s : s;
+  if (desiredWidth <= DEFAULT_TIME_BOX_WIDTH) {
+    const hadInlineWidth = timeBox.style.width !== '';
+    const hadExpandedClass = timeBox.classList.contains('expanded');
+    if (hadInlineWidth) timeBox.style.removeProperty('width');
+    if (hadExpandedClass) timeBox.classList.remove('expanded');
+    return hadInlineWidth || hadExpandedClass;
+  }
 
-  return minutesStr + ':' + secondsStr;
+  const currentWidth = parseInt(timeBox.style.width || `${DEFAULT_TIME_BOX_WIDTH}`, 10);
+  const hadExpandedClass = timeBox.classList.contains('expanded');
+
+  timeBox.style.width = `${desiredWidth}px`;
+  if (!hadExpandedClass) timeBox.classList.add('expanded');
+
+  return currentWidth !== desiredWidth || !hadExpandedClass;
+}
+
+function formatTimeForDuration(seconds, referenceDuration) {
+  const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+  const safeReference = Math.max(0, Math.floor(Number(referenceDuration) || 0));
+
+  if (safeReference >= 3600) {
+    const referenceHours = Math.floor(safeReference / 3600);
+    const hourDigits = Math.max(2, String(referenceHours).length);
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const secs = safeSeconds % 60;
+    return `${String(hours).padStart(hourDigits, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+
+  const totalMinutes = Math.floor(safeSeconds / 60);
+  const secs = safeSeconds % 60;
+  return `${String(totalMinutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
 function updateBuffered() {
@@ -598,31 +900,91 @@ volumeTrack.addEventListener('click', (e) => {
 const controlBarHeight = 31; // Adjust if your control bar height differs
 
 function adjustVideoSizeForFullscreen() {
+  const container = document.querySelector('.player-container');
   const videoArea = document.querySelector('.video-area');
+  const bottomBar = document.querySelector('.bottom-bar');
+  if (!videoArea) return;
 
   if (document.fullscreenElement) {
     // In fullscreen mode, set .video-area to fill the screen except the control bar space
-    videoArea.style.height = `calc(100vh - ${controlBarHeight}px)`;
-    videoArea.style.width = '100%';
+    const fullscreenWidth = Math.max(1, window.innerWidth);
+    const fullscreenHeight = Math.max(1, window.innerHeight - controlBarHeight);
+    if (container) {
+      container.style.setProperty('width', '100vw', 'important');
+      container.style.setProperty('max-width', '100vw', 'important');
+      container.style.setProperty('height', '100vh', 'important');
+      container.style.setProperty('min-height', '100vh', 'important');
+    }
+    videoArea.style.setProperty('width', `${fullscreenWidth}px`, 'important');
+    videoArea.style.setProperty('min-width', `${fullscreenWidth}px`, 'important');
+    videoArea.style.setProperty('height', `${fullscreenHeight}px`, 'important');
+    videoArea.style.setProperty('min-height', `${fullscreenHeight}px`, 'important');
     videoArea.style.display = 'flex';
     videoArea.style.alignItems = 'center';
     videoArea.style.justifyContent = 'center';
+    if (bottomBar) {
+      // Override prior fixed inline widths from classic/theater windowed sizing.
+      bottomBar.style.setProperty('width', '100vw', 'important');
+      bottomBar.style.setProperty('max-width', '100vw', 'important');
+      bottomBar.style.setProperty('left', '0px', 'important');
+      bottomBar.style.setProperty('right', '0px', 'important');
+    }
 
-    // Set the video to fill vertical space
-    myVideo.style.width = 'auto';
-    myVideo.style.height = '100%';
-    myVideo.style.objectFit = 'contain';
+    if (isYouTubeMode) {
+      syncYouTubePlayerBox(fullscreenWidth, fullscreenHeight);
+    } else {
+      // Override any previously inlined fixed classic/theater sizes.
+      myVideo.style.setProperty('width', '100%', 'important');
+      myVideo.style.setProperty('height', '100%', 'important');
+      myVideo.style.setProperty('max-width', '100%', 'important');
+      myVideo.style.setProperty('max-height', '100%', 'important');
+      myVideo.style.setProperty('object-fit', 'contain', 'important');
+    }
   } else {
-    // In windowed mode, revert to original sizing
+    if (container) {
+      container.style.removeProperty('width');
+      container.style.removeProperty('max-width');
+      container.style.removeProperty('height');
+      container.style.removeProperty('min-height');
+    }
+    if (bottomBar) {
+      bottomBar.style.removeProperty('left');
+      bottomBar.style.removeProperty('right');
+    }
+
+    // In windowed mode on watch.html, keep the classic fixed box.
+    if (isWatchClassicLayout()) {
+      videoArea.style.display = '';
+      videoArea.style.alignItems = '';
+      videoArea.style.justifyContent = '';
+      if (isWatchTheaterModeActive()) {
+        enforceWatchTheaterWindowedBox();
+      } else {
+        enforceWatchClassicWindowedBox();
+      }
+      return;
+    }
+
+    // In windowed mode elsewhere, revert to original sizing
     videoArea.style.height = 'auto';
     videoArea.style.width = '100%';
+    videoArea.style.removeProperty('min-width');
+    videoArea.style.removeProperty('min-height');
     videoArea.style.display = '';
     videoArea.style.alignItems = '';
     videoArea.style.justifyContent = '';
+    if (bottomBar) {
+      bottomBar.style.removeProperty('width');
+      bottomBar.style.removeProperty('max-width');
+      bottomBar.style.removeProperty('left');
+      bottomBar.style.removeProperty('right');
+    }
 
-    myVideo.style.width = '100%';
-    myVideo.style.height = 'auto';
-    myVideo.style.objectFit = 'contain';
+    myVideo.style.removeProperty('width');
+    myVideo.style.removeProperty('height');
+    myVideo.style.removeProperty('max-width');
+    myVideo.style.removeProperty('max-height');
+    myVideo.style.removeProperty('object-fit');
   }
 }
 
@@ -646,6 +1008,87 @@ function toggleFullscreen() {
 playPauseBtn.addEventListener('click', togglePlayPause);
 rewindBtn.addEventListener('click', rewindVideo);
 fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+/* Animated Theater Button Frames */
+let theaterFrame = 1;
+const theaterLoopMaxFrame = 4; // loop frames 1-4 on hover
+let theaterTimer = null;
+let theaterHovering = false;
+const theaterFrameDelay = 110; // ms per frame
+const theaterReturnDelay = 40; // quicker return-to-1, like fullscreen feel
+
+function setTheaterFrame(frame) {
+  if (!theaterBtn) return;
+  theaterFrame = Math.max(1, Math.min(theaterLoopMaxFrame, frame));
+  theaterBtn.style.backgroundImage = `url('assets/theater_button/${theaterFrame}.svg')`;
+}
+
+function clearTheaterTimer() {
+  if (!theaterTimer) return;
+  clearTimeout(theaterTimer);
+  theaterTimer = null;
+}
+
+function runTheaterHoverAnimation() {
+  if (!theaterBtn || !theaterHovering) return;
+  const next = theaterFrame >= theaterLoopMaxFrame ? 1 : theaterFrame + 1;
+  setTheaterFrame(next);
+  theaterTimer = setTimeout(runTheaterHoverAnimation, theaterFrameDelay);
+}
+
+function runTheaterReturnAnimation() {
+  if (!theaterBtn) return;
+  if (theaterFrame <= 1) {
+    setTheaterFrame(1);
+    clearTheaterTimer();
+    return;
+  }
+  setTheaterFrame(theaterFrame - 1);
+  theaterTimer = setTimeout(runTheaterReturnAnimation, theaterReturnDelay);
+}
+
+function startTheaterAnimation() {
+  if (!uiAssetsReady || !theaterBtn) return;
+  theaterHovering = true;
+  clearTheaterTimer();
+  // Always begin at frame 1 for a consistent loop.
+  setTheaterFrame(1);
+  theaterBtn.style.opacity = 1; // match fullscreen hover-start behavior
+  theaterTimer = setTimeout(runTheaterHoverAnimation, theaterFrameDelay);
+}
+
+function stopTheaterAnimation() {
+  if (!theaterBtn) return;
+  theaterHovering = false;
+  clearTheaterTimer();
+  // Step back to frame 1 instead of snapping.
+  runTheaterReturnAnimation();
+}
+
+function attachTheaterHoverEvents() {
+  if (!theaterBtn || theaterHoverEventsAttached) return;
+  theaterBtn.addEventListener('mouseenter', startTheaterAnimation);
+  theaterBtn.addEventListener('mouseleave', stopTheaterAnimation);
+  theaterHoverEventsAttached = true;
+}
+
+function detachTheaterHoverEvents() {
+  if (!theaterBtn || !theaterHoverEventsAttached) return;
+  theaterBtn.removeEventListener('mouseenter', startTheaterAnimation);
+  theaterBtn.removeEventListener('mouseleave', stopTheaterAnimation);
+  theaterHovering = false;
+  clearTheaterTimer();
+  setTheaterFrame(1);
+  theaterHoverEventsAttached = false;
+}
+
+if (theaterBtn) {
+  theaterBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!isWatchClassicLayout() || document.fullscreenElement) return;
+    setWatchTheaterMode(!isWatchTheaterModeActive());
+  });
+}
 
 /* Animated Fullscreen Button Frames */
 let fullscreenFrame = 1;
@@ -702,9 +1145,12 @@ function detachFullscreenHoverEvents() {
 
         // Handle fullscreen changes
         document.addEventListener('fullscreenchange', () => {
+          setFullscreenUiState(!!document.fullscreenElement);
           if (document.fullscreenElement) {
             stopFullscreenAnimation();
             detachFullscreenHoverEvents();
+            stopTheaterAnimation();
+            detachTheaterHoverEvents();
             fullscreenBtn.style.backgroundImage = `url('assets/fullscreen_button/exit_fullscreen.png')`;
             fullscreenBtn.style.backgroundSize = '45px 15px';
             fullscreenBtn.classList.add('exit-icon');
@@ -713,10 +1159,20 @@ function detachFullscreenHoverEvents() {
             fullscreenBtn.style.backgroundImage = `url('assets/fullscreen_button/1.png')`;
             fullscreenBtn.style.backgroundSize = '25px 18px';
             attachFullscreenHoverEvents();
+            attachTheaterHoverEvents();
           }
         
           // Adjust video size immediately for fullscreen/windowed
           adjustVideoSizeForFullscreen();
+          if (!document.fullscreenElement) {
+            setTimeout(() => {
+              if (isWatchTheaterModeActive()) {
+                enforceWatchTheaterWindowedBox();
+              } else {
+                enforceWatchClassicWindowedBox();
+              }
+            }, 0);
+          }
           
           // ResizeObserver will handle updateProgress()/updateBuffered() instantly upon layout changes
         });
@@ -869,6 +1325,11 @@ async function preloadUIAssets() {
   }
   fullscreenFrames.push('assets/fullscreen_button/exit_fullscreen.png');
 
+  const theaterFrames = [];
+  for (let i = 1; i <= 6; i++) {
+    theaterFrames.push(`assets/theater_button/${i}.svg`);
+  }
+
   const loadingFrames = [];
   for (let i = 1; i <= 22; i++) {
     loadingFrames.push(`assets/loading_frames/${i}.svg`);
@@ -892,6 +1353,7 @@ async function preloadUIAssets() {
   const allUiAssets = [
     ...stylesheetAssets,
     ...fullscreenFrames,
+    ...theaterFrames,
     ...loadingFrames,
     ...volumeIcons,
     ...hoverCriticalAssets
@@ -915,10 +1377,16 @@ function scheduleUIUpdate() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('[YTDBG] DOMContentLoaded. URL:', window.location.href);
+  if (isWatchTheaterModeActive()) {
+    enforceWatchTheaterWindowedBox();
+  } else {
+    enforceWatchClassicWindowedBox();
+  }
   await preloadUIAssets();
   uiAssetsReady = true;
   setPlayerVisibility(true);
   attachFullscreenHoverEvents();
+  attachTheaterHoverEvents();
   if (pendingLoadingAnimation) {
     startLoadingAnimation();
   }
@@ -931,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.error('[YTDBG] enterYouTubeMode failed:', err);
       // If anything fails, revert gracefully to HTML5 video
       isYouTubeMode = false;
-      ytContainer.style.display = 'none';
+      setActiveYouTubeDisplay('none');
       myVideo.style.display = 'block';
       stopLoadingAnimation();
       myVideo.play().catch(e => console.warn('[YTDBG] HTML5 autoplay failed:', e));
@@ -940,6 +1408,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('[YTDBG] Staying in HTML5 mode, autoplaying local video.');
     // HTML5 autoplay
     myVideo.play().catch(e => console.warn('[YTDBG] HTML5 autoplay failed:', e));
+  }
+  if (isWatchTheaterModeActive()) {
+    enforceWatchTheaterWindowedBox();
+  } else {
+    enforceWatchClassicWindowedBox();
   }
 
   if (ytLoaderForm) {
@@ -990,9 +1463,14 @@ function ensureYouTubeAPI() {
 async function enterYouTubeMode(videoId, startAt = 0) {
   console.log('[YTDBG] enterYouTubeMode called', { videoId, startAt });
   isYouTubeMode = true;
-  ytContainer.style.display = 'block';
+  setActiveYouTubeDisplay('block');
   myVideo.pause();
   myVideo.style.display = 'none';
+  if (isWatchTheaterModeActive()) {
+    enforceWatchTheaterWindowedBox();
+  } else {
+    enforceWatchClassicWindowedBox();
+  }
   await ensureYouTubeAPI();
   console.log('[YTDBG] ensureYouTubeAPI resolved. Creating/using player...');
 
@@ -1006,6 +1484,11 @@ async function enterYouTubeMode(videoId, startAt = 0) {
           console.log('[YTDBG] onReady fired');
           videoDuration = ytPlayer.getDuration();
           console.log('[YTDBG] duration', videoDuration);
+          if (isWatchTheaterModeActive()) {
+            enforceWatchTheaterWindowedBox();
+          } else {
+            enforceWatchClassicWindowedBox();
+          }
           if (!ytPollInterval) {
             ytPollInterval = setInterval(() => { scheduleUIUpdate(); }, 200);
           }
@@ -1033,10 +1516,24 @@ async function enterYouTubeMode(videoId, startAt = 0) {
         }
       }
     });
+    setTimeout(() => {
+      if (isWatchTheaterModeActive()) {
+        enforceWatchTheaterWindowedBox();
+      } else {
+        enforceWatchClassicWindowedBox();
+      }
+    }, 0);
   } else {
     console.log('[YTDBG] Reusing existing player. loadVideoById', { videoId, startAt });
     ytPlayer.loadVideoById({ videoId, startSeconds: startAt });
     ytPlayer.mute();
     setVolume(0);
+    setTimeout(() => {
+      if (isWatchTheaterModeActive()) {
+        enforceWatchTheaterWindowedBox();
+      } else {
+        enforceWatchClassicWindowedBox();
+      }
+    }, 0);
   }
 }

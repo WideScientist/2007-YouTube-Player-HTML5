@@ -98,6 +98,19 @@ flex-direction: column;
 width: 100%;
 }
 
+/* Hide theater control while in fullscreen mode */
+.player-container:fullscreen .theater-btn,
+.player-container:-webkit-full-screen .theater-btn,
+.player-container:-moz-full-screen .theater-btn,
+.player-container:-ms-fullscreen .theater-btn {
+display: none !important;
+}
+
+/* JS fallback class in case browser fullscreen pseudo handling is inconsistent */
+.player-is-fullscreen .theater-btn {
+display: none !important;
+}
+
 .video-area {
 width: 100%;
 height: 100%;
@@ -327,7 +340,7 @@ background-image: url('assets/playpausebuttons/play_icon_hover.svg');
 }
 .pause-btn:active {
 transform: scaleY(-1);
-transform-origin: center;
+transform-origin: center 12px;
 }
 
 /* Play/Pause Button (playing) */
@@ -339,7 +352,7 @@ background-image: url('assets/playpausebuttons/pause_icon_hover.svg');
 }
 .pause-btn.playing:active {
 transform: scaleY(-1);
-transform-origin: center;
+transform-origin: center 12px;
 }
 
 /* Rewind Button */
@@ -371,7 +384,7 @@ height: 8px;
 background: none;
 flex: 1;
 min-width: 0;
-margin: 0 12px;
+margin: 0 20px 0 10px;
 z-index: 9999;
 display: block;
 }
@@ -411,16 +424,18 @@ will-change: left, width;
 .progress-handle {
   position: absolute;
   top: 50%;  /* center vertically */
-  transform: translateY(-50%);
-  width: 21px;
-  height: 21px;
+  transform: translate(4px, -50%);
+  width: 17px;
+  height: 17px;
   background: url('assets/timeline/cursor/timeline_cursor.svg') no-repeat center center;
+  background-size: 17px 17px;
   cursor: pointer;
   z-index: 9999;
   will-change: left;
 }
 .progress-handle.active {
   background: url('assets/timeline/cursor/timeline_cursor_red.svg') no-repeat center center !important;
+  background-size: 17px 17px !important;
 }
 
 .progress-loaded,
@@ -455,6 +470,7 @@ user-select: none;
 
 .time-box {
 width: 70px;
+min-width: 70px;
 height: 18px;
 background: url('assets/timeline/time_bg.svg') no-repeat center center;
 text-align: center;
@@ -470,6 +486,9 @@ margin-left: -10px;
 -ms-user-select: none;
 user-select: none;
 }
+.time-box.expanded {
+  background-size: 100% 100%;
+}
 
 .time-current { color: #fff; }
 .time-total { color: #C00; }
@@ -482,6 +501,24 @@ height: 31px;
 background: url('assets/background/divider.svg') no-repeat center center;
 display: inline-block;
 vertical-align: middle;
+}
+
+.theater-left-divider {
+  position: relative;
+  left: -2px;
+}
+
+/* Align clock + volume cluster with the original control-bar spacing */
+.right-controls .time-section,
+.right-controls .volume-section,
+.right-controls .theater-left-divider {
+  position: relative;
+  left: -6px;
+}
+
+.timer-right-divider {
+  position: relative;
+  left: -10px;
 }
 
 /* Volume Section */
@@ -574,15 +611,32 @@ filter: grayscale(100%);
 opacity: 0.7;
 }
 
+/* Theater Button */
+.theater-btn {
+display: inline-block;
+vertical-align: middle;
+margin-left: 1px;
+margin-right: 0;
+width: 22px;
+height: 18px;
+background: url('assets/theater_button/1.svg') no-repeat center center;
+background-size: 21px 15px;
+background-position: center 50%;
+image-rendering: auto;
+transition: 0.3s ease; /* match fullscreen fade timing */
+will-change: background-image;
+}
+
 /* Fullscreen Button */
 .fullscreen-btn {
 display: inline-block;
 vertical-align: middle;
-margin-left: 3px;
+margin-left: 1px;
 margin-right: 3px;
 width: 25px; /* Ensure exact size matches your frames (e.g., 20px) */
 height: 18px;
 background: url('assets/fullscreen_button/1.png') no-repeat center center;
+background-position: center 50%;
 background-size: 25px 18px; /* Match frame size exactly to avoid scaling */
 image-rendering: auto; /* Let browser smooth it out */
 transition:  0.3s ease; /* For fade effect on frame 24 -> 1 */
@@ -592,11 +646,12 @@ will-change: background-image;
 .fullscreen-btn:fullscreen {
 display: inline-block;
 vertical-align: middle;
-margin-left: 3px;
+margin-left: 1px;
 margin-right: 6px;
 width: 25px; /* Ensure exact size matches your frames (e.g., 20px) */
 height: 18px;
 background: url('assets/fullscreen_button/1.png') no-repeat center center;
+background-position: center 50%;
 background-size: 25px 18px; /* Match frame size exactly to avoid scaling */
 image-rendering: auto; /* Let browser smooth it out */
 transition:  0.3s ease; /* For fade effect on frame 24 -> 1 */

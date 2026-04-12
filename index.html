@@ -34,6 +34,12 @@
 <link rel="preload" as="image" href="assets/volume/volume_icon.svg"/>
 <link rel="preload" as="image" href="assets/volume/volume_indicator.svg?v=4"/>
 <link rel="preload" as="image" href="assets/loading_frames/1.svg"/>
+<noscript>
+  <meta http-equiv="refresh" content="0; url=watch.html"/>
+</noscript>
+<script>
+  window.location.replace('watch.html' + window.location.search + window.location.hash);
+</script>
 </head>
 <body>
 
@@ -80,10 +86,10 @@
           <div class="time-box">
             <span class="time-current" id="timeCurrent">00:00</span>
             <span class="time-sep"> / </span>
-            <span class="time-total" id="timeTotal">0:00</span>
+            <span class="time-total" id="timeTotal">00:00</span>
           </div>
         </div>
-        <div class="divider"></div>
+        <div class="divider timer-right-divider"></div>
         <div class="volume-section">
           <div class="volume-track" id="volumeTrack">
             <div class="volume-level" id="volumeLevel"></div>
@@ -91,13 +97,14 @@
           </div>
           <button class="control-button volume-btn" id="volumeBtn" title="Volume"></button>
         </div>
-        <div class="divider"></div>
+        <div class="divider theater-left-divider"></div>
+        <button class="control-button theater-btn" id="theaterBtn" title="Theater"></button>
         <button class="control-button fullscreen-btn" id="fullscreenBtn" title="Fullscreen"></button>
       </div>
     </div>
   </div>
 </div>
 
-<script src="script.js"></script>
+<script src="script.js?v=20260412w20"></script>
 </body>
 </html>
